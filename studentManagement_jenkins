@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+
+    environment {
+        // AWS EC2 settings
+        EC2_USER = 'student_management'
+        EC2_HOST = '152.58.20.1'  // EC2 instance IP address
+        EC2_KEY_PATH = 'C:\Users\ASUS\Downloads\project.pem'  
+        AWS_REGION = 'us-east-1'  
+        JAR_FILE_NAME = 'student-management-1.0-SNAPSHOT.jar'  
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the code from GitHub
+                git 'https://github.com/Aditikhare1101/Student-Management-using-Spring-Boot.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // Build the project using Maven
+                script {
+                    sh 'mvn clean install -DskipTests'  // Build the jar without running tests
+                }
+            }
+        }
+
+        stage('Upload to EC2') {
+            steps {
+               
+                script {
+                    sh """
+                    scp -i ${C:\Users\ASUS\Downloads\project.pem} target/${student-management-1.0-SNAPSHOT.jar} ${student_management}@${EC2_HOST}:/home/${EC2_USER}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy and Start') {
+            steps {
+                // SSH into the EC2 instance and start the jar file
+                script {
+                    sh """
+                    ssh -i ${EC2_KEY_PATH} ${EC2_USER}@${EC2_HOST} << EOF
+                        # Stop any running Spring Boot application (if any)
+                        pkill -f 'java -jar'
+                        
+                        # Navigate to the directory where JAR is uploaded
+                        cd /home/${EC2_USER}
+                        
+                        # Start the application in the background
+                        nohup java -jar ${JAR_FILE_NAME} > app.log 2>&1 &
+                    EOF
+                    """
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Build and Deployment successful!'
+        }
+        failure {
+            echo 'Build or Deployment failed!'
+        }
+    }
+}
